@@ -571,6 +571,7 @@ function useSidebarThreads(input: {
           return {
             group: folder.group,
             collapsed,
+            allThreads: folderThreads,
             // A closed folder still shows the open thread, and hints at the rest.
             threads: collapsed ? routeThreadOnly(folderThreads, routeRowThreadKey) : folderThreads,
             hiddenThreads: collapsed
@@ -1291,8 +1292,20 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     if (isMobile) setOpenMobile(false);
     void handleNewThread(scopeProjectRef(group.environmentId, group.id));
   });
+  // Visiting at the run's own completion clears Done without trusting this client's clock.
+  const markThreadsRead = useStableCallback((threads: readonly EnvironmentThreadShell[]) => {
+    for (const thread of threads) {
+      const completedAt = thread.latestRun?.completedAt;
+      if (completedAt) acknowledgeWoke(scopeThreadRef(thread.environmentId, thread.id), completedAt);
+    }
+  });
+
   const handleProjectFolderContextMenu = useStableCallback(
-    (group: SidebarProjectSnapshot, position: { x: number; y: number }) => {
+    (
+      group: SidebarProjectSnapshot,
+      position: { x: number; y: number },
+      doneThreads: readonly EnvironmentThreadShell[],
+    ) => {
       const api = readLocalApi();
       if (!api) return;
       void (async () => {
@@ -1300,6 +1313,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           api.contextMenu.show(
             [
               { id: "new-thread", label: "New thread" },
+              ...(doneThreads.length > 0
+                ? [{ id: "mark-read", label: `Mark all read (${doneThreads.length})` }]
+                : []),
               { id: "copy-path", label: "Copy path" },
               ...(canPinProject(group)
                 ? [
@@ -1317,6 +1333,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         switch (clicked.value) {
           case "new-thread":
             startThreadInProjectFolder(group);
+            return;
+          case "mark-read":
+            markThreadsRead(doneThreads);
             return;
           case "copy-path":
             copyPathToClipboard(group.workspaceRoot, { path: group.workspaceRoot });
@@ -3572,9 +3591,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 key={`project-folder:${folder.group.projectKey}`}
                                 group={folder.group}
                                 collapsed={folder.collapsed}
+                                threads={folder.allThreads}
                                 hiddenThreads={folder.hiddenThreads}
                                 onToggle={toggleProjectFolder}
                                 onNewThread={startThreadInProjectFolder}
+                                onMarkRead={markThreadsRead}
                                 onContextMenu={handleProjectFolderContextMenu}
                                 dragging={projectFolderOrder.draggedKey === folder.group.projectKey}
                                 dropEdge={projectFolderOrder.dropEdge(folder.group)}

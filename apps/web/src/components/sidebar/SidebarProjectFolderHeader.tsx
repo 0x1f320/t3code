@@ -1,12 +1,16 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { ChevronDownIcon, SquarePenIcon } from "lucide-react";
+import { CheckCheckIcon, ChevronDownIcon, SquarePenIcon } from "lucide-react";
 import { memo, type DragEvent } from "react";
 
 import { cn } from "~/lib/utils";
 import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import { useUiStateStore } from "../../uiStateStore";
-import { resolveSidebarFolderStatus, resolveThreadLastVisitedAt } from "../Sidebar.logic";
+import {
+  isSidebarThreadDone,
+  resolveSidebarFolderStatus,
+  resolveThreadLastVisitedAt,
+} from "../Sidebar.logic";
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
@@ -25,6 +29,10 @@ const FOLDER_DOT_LABEL = {
   unread: ", done",
 } as const;
 
+// The trailing status gives way to the hover actions drawn over it.
+const HIDDEN_UNDER_ACTIONS_CLASS_NAME =
+  "group-hover/project-folder:invisible group-has-[[data-sidebar-action-for]:focus]/project-folder:invisible pointer-coarse:invisible";
+
 /** The folder's sidebar tree row; its thread rows name it as their parent. */
 export function sidebarFolderRowId(projectKey: string) {
   return `folder:${projectKey}`;
@@ -38,10 +46,16 @@ export function sidebarFolderRowId(projectKey: string) {
 export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHeader(props: {
   group: SidebarProjectSnapshot;
   collapsed: boolean;
+  threads: readonly EnvironmentThreadShell[];
   hiddenThreads: readonly EnvironmentThreadShell[];
   onToggle: (group: SidebarProjectSnapshot) => void;
   onNewThread: (group: SidebarProjectSnapshot) => void;
-  onContextMenu: (group: SidebarProjectSnapshot, position: { x: number; y: number }) => void;
+  onMarkRead: (threads: readonly EnvironmentThreadShell[]) => void;
+  onContextMenu: (
+    group: SidebarProjectSnapshot,
+    position: { x: number; y: number },
+    doneThreads: readonly EnvironmentThreadShell[],
+  ) => void;
   dragging: boolean;
   dropEdge: ProjectFolderDropEdge | null;
   onDragStart: (group: SidebarProjectSnapshot, event: DragEvent) => void;
@@ -53,19 +67,19 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
   const { group, collapsed, hiddenThreads } = props;
   const rowId = sidebarFolderRowId(group.projectKey);
   const localLastVisitedAtById = useUiStateStore((state) => state.threadLastVisitedAtById);
+  const withLastVisitedAt = (thread: EnvironmentThreadShell) => ({
+    ...thread,
+    lastVisitedAt: resolveThreadLastVisitedAt(
+      thread.lastVisitedAt,
+      localLastVisitedAtById[scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))],
+    ),
+  });
   const status = collapsed
-    ? resolveSidebarFolderStatus(
-        hiddenThreads.map((thread) => ({
-          ...thread,
-          lastVisitedAt: resolveThreadLastVisitedAt(
-            thread.lastVisitedAt,
-            localLastVisitedAtById[
-              scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))
-            ],
-          ),
-        })),
-      )
+    ? resolveSidebarFolderStatus(hiddenThreads.map(withLastVisitedAt))
     : null;
+  const doneThreads = props.threads.filter((thread) =>
+    isSidebarThreadDone(withLastVisitedAt(thread)),
+  );
   return (
     <li
       data-testid="sidebar-project-folder"
@@ -96,7 +110,7 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
         onClick={() => props.onToggle(group)}
         onContextMenu={(event) => {
           event.preventDefault();
-          props.onContextMenu(group, { x: event.clientX, y: event.clientY });
+          props.onContextMenu(group, { x: event.clientX, y: event.clientY }, doneThreads);
         }}
         className="flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-(--control-radius) px-(--sidebar-row-content-inset) text-left outline-none hover:bg-sidebar-row-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
@@ -105,15 +119,31 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           {group.displayName}
         </span>
         {status?.working ? (
-          <Spinner aria-label="working" size="xs" tone="muted" className="shrink-0" />
+          <Spinner
+            aria-label="working"
+            size="xs"
+            tone="muted"
+            className={cn("shrink-0", HIDDEN_UNDER_ACTIONS_CLASS_NAME)}
+          />
         ) : null}
         {status?.dot ? (
-          <span className={cn("size-1.5 shrink-0 rounded-full", FOLDER_DOT_CLASS_NAME[status.dot])}>
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              FOLDER_DOT_CLASS_NAME[status.dot],
+              HIDDEN_UNDER_ACTIONS_CLASS_NAME,
+            )}
+          >
             <span className="sr-only">{FOLDER_DOT_LABEL[status.dot]}</span>
           </span>
         ) : null}
         {collapsed && hiddenThreads.length > 0 ? (
-          <span className="shrink-0 text-xs tabular-nums text-sidebar-muted-foreground group-hover/project-folder:invisible group-has-[[data-sidebar-action-for]:focus]/project-folder:invisible pointer-coarse:invisible">
+          <span
+            className={cn(
+              "shrink-0 text-xs tabular-nums text-sidebar-muted-foreground",
+              HIDDEN_UNDER_ACTIONS_CLASS_NAME,
+            )}
+          >
             {hiddenThreads.length}
           </span>
         ) : null}
@@ -127,6 +157,24 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
       </button>
       {/* Sits over the count, which hides on hover or focus, and left of the chevron. */}
       <span className="absolute inset-y-0 right-6 flex items-center opacity-0 focus-within:opacity-100 group-hover/project-folder:opacity-100 pointer-coarse:opacity-100">
+        {doneThreads.length > 0 ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  data-sidebar-action-for={rowId}
+                  size="icon-xs"
+                  variant="ghost-muted"
+                  aria-label={`Mark all read in ${group.displayName}`}
+                  onClick={() => props.onMarkRead(doneThreads)}
+                />
+              }
+            >
+              <CheckCheckIcon aria-hidden />
+            </TooltipTrigger>
+            <TooltipPopup>Mark all read ({doneThreads.length})</TooltipPopup>
+          </Tooltip>
+        ) : null}
         <Tooltip>
           <TooltipTrigger
             render={
