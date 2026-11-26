@@ -623,6 +623,7 @@ function useSidebarThreads(input: {
                 return {
                   folder: subfolder.folder,
                   collapsed: subfolderCollapsed,
+                  allThreads: subfolder.threads,
                   ...foldThreads(subfolder.threads, subfolderCollapsed),
                 };
               });
@@ -1363,10 +1364,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       openProjectSettings(projectGroup);
     },
   );
-  const startThreadInProjectFolder = useStableCallback((group: SidebarProjectSnapshot) => {
-    if (isMobile) setOpenMobile(false);
-    void handleNewThread(scopeProjectRef(group.environmentId, group.id));
-  });
+  // The project's empty draft is reused, so a draft opened from a folder leaves it here.
+  const startThreadInProjectFolder = useStableCallback(
+    async (group: SidebarProjectSnapshot, folder: ThreadFolderSummary | null = null) => {
+      if (isMobile) setOpenMobile(false);
+      const projectRef = scopeProjectRef(group.environmentId, group.id);
+      const opened = await handleNewThread(projectRef);
+      if (opened === null) return;
+      threadFolders.move(group, [{ ...projectRef, id: opened.threadId }], folder);
+    },
+  );
   // Visiting at the run's completion reads exactly what the folder showed as Done.
   const markFolderThreadsRead = useStableCallback((threads: readonly EnvironmentThreadShell[]) => {
     for (const thread of threads) {
@@ -1397,6 +1404,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         const clicked = await settlePromise(() =>
           api.contextMenu.show(
             [
+              { id: "new-thread", label: gt("New thread") },
               { id: "rename", label: gt("Rename folder…"), icon: "pencil" },
               {
                 id: "delete",
@@ -1411,7 +1419,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ),
         );
         if (clicked._tag === "Failure") return;
-        if (clicked.value === "rename") {
+        if (clicked.value === "new-thread") {
+          void startThreadInProjectFolder(group, folder);
+        } else if (clicked.value === "rename") {
           const name = await requestThreadFolderName("rename", folder.name);
           if (name !== null && name !== folder.name) threadFolders.rename(group, folder.id, name);
         } else if (clicked.value === "delete") {
@@ -1462,7 +1472,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         if (clicked._tag === "Failure") return;
         switch (clicked.value) {
           case "new-thread":
-            startThreadInProjectFolder(group);
+            void startThreadInProjectFolder(group);
             return;
           case "new-folder":
             void createThreadFolder(group);
@@ -3905,6 +3915,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                   folder={subfolder.folder}
                                   navigationParent={folderRow}
                                   collapsed={subfolder.collapsed}
+                                  threads={subfolder.allThreads}
                                   hiddenThreads={subfolder.hiddenThreads}
                                   isDropTarget={
                                     threadFolderDropKey ===
@@ -3914,6 +3925,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                     )
                                   }
                                   onToggle={toggleThreadFolder}
+                                  onNewThread={startThreadInProjectFolder}
                                   onContextMenu={handleThreadFolderContextMenu}
                                 />,
                               );
