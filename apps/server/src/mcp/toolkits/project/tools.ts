@@ -18,6 +18,8 @@ import {
   OrchestratorMcpClientRequestId,
   OrchestratorMcpEnvironmentTarget,
   OrchestratorMcpFailure,
+  OrchestratorMcpThreadFolder,
+  OrchestratorMcpThreadFolderTarget,
   SourceControlCloneRepositoryInput,
   SourceControlCloneRepositoryResult,
 } from "@t3tools/contracts";
@@ -156,6 +158,7 @@ const ThreadLaunchTool = Tool.make("t3_thread_launch", {
       }),
     ),
     attachments: Schema.optional(Schema.Array(McpAttachmentInput).check(Schema.isMaxLength(8))),
+    folderId: OrchestratorMcpThreadFolderTarget,
     clientRequestId: Schema.optional(OrchestratorMcpClientRequestId),
     /** Set by a linked environment launching its agent's delegated task here; ignored otherwise. */
     delegatedFrom: Schema.optional(OrchestrationV2DelegatedFrom),
@@ -167,6 +170,7 @@ const ThreadLaunchTool = Tool.make("t3_thread_launch", {
     modelSelection: ModelSelection,
     runId: Schema.NullOr(RunId),
     status: Schema.NullOr(OrchestrationV2RunStatus),
+    folder: Schema.optional(Schema.NullOr(OrchestratorMcpThreadFolder)),
   }),
   dependencies: [
     ...shared.dependencies,

@@ -47,6 +47,19 @@ import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
 
 const OrchestratorMcpPrompt = TrimmedNonEmptyString.check(Schema.isMaxLength(120_000));
 const OrchestratorMcpTitle = TrimmedNonEmptyString.check(Schema.isMaxLength(512));
+
+export const OrchestratorMcpThreadFolder = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+});
+export type OrchestratorMcpThreadFolder = typeof OrchestratorMcpThreadFolder.Type;
+/** Where a new thread lands in its project's sidebar. */
+export const OrchestratorMcpThreadFolderTarget = Schema.optional(
+  Schema.NullOr(TrimmedNonEmptyString).annotate({
+    description:
+      "Sidebar folder id (`t3_thread_read` `thread.folder.id`). Default: yours, in your project. null: none.",
+  }),
+);
 export const OrchestratorMcpClientRequestId = TrimmedNonEmptyString.check(Schema.isMaxLength(256))
   .check(
     Schema.makeFilter((value) =>
@@ -281,6 +294,7 @@ export const OrchestratorMcpCreateThreadRequest = Schema.Struct({
   target: Schema.optional(OrchestratorMcpTarget),
   runtimeMode: Schema.optional(OrchestratorMcpRuntimeMode),
   interactionMode: Schema.optional(OrchestratorMcpInteractionMode),
+  folderId: OrchestratorMcpThreadFolderTarget,
 });
 export type OrchestratorMcpCreateThreadRequest = typeof OrchestratorMcpCreateThreadRequest.Type;
 
@@ -311,6 +325,7 @@ export const OrchestratorMcpCreatedThread = Schema.Struct({
   creationSource: OrchestrationV2CreationSource,
   providerInstanceId: ProviderInstanceId,
   model: Schema.String,
+  folder: Schema.optional(Schema.NullOr(OrchestratorMcpThreadFolder)),
 });
 export type OrchestratorMcpCreatedThread = typeof OrchestratorMcpCreatedThread.Type;
 
@@ -500,6 +515,8 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
   blockedOnThreadWait: Schema.optional(Schema.Boolean),
   /** Absent from linked environments that predate it. */
   pendingBackgroundTasks: Schema.optional(Schema.Array(OrchestratorMcpThreadBackgroundTask)),
+  /** Its sidebar folder, or null. Absent from linked environments that predate it. */
+  folder: Schema.optional(Schema.NullOr(OrchestratorMcpThreadFolder)),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });

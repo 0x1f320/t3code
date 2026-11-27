@@ -135,6 +135,7 @@ import {
   taskPrompt,
 } from "./delegatedTaskModes.ts";
 import { assertTargetWithinLimits, isLiveCallerShell, threadNotFound } from "./threadAccess.ts";
+import { placeNewThread, readThreadFolder, resolveNewThreadFolder } from "./threadFolders.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as PeerForwarding from "../peer/PeerForwarding.ts";
 import * as RemoteDelegation from "../peer/RemoteDelegation.ts";
@@ -1018,6 +1019,7 @@ function threadDetail(
   shell: OrchestrationV2ThreadShell,
   nowMs: number,
   firstPage: boolean,
+  folder: OrchestratorMcpThreadDetail["folder"],
 ): OrchestratorMcpThreadDetail {
   const latest = ThreadManagementService.latestRun(projection);
   const active = ThreadManagementService.latestActiveRun(projection);
@@ -1069,6 +1071,7 @@ function threadDetail(
     ...threadSnooze(shell, nowMs),
     pinned: shell.pinnedAt != null,
     ...threadBackgroundWork(shell),
+    ...(folder === undefined ? {} : { folder }),
     createdAt: DateTime.formatIso(projection.thread.createdAt),
     updatedAt: DateTime.formatIso(projection.thread.updatedAt),
   };
@@ -3261,6 +3264,11 @@ const make = Effect.gen(function* () {
                 title: request.title,
                 index,
               });
+              const folder = yield* resolveNewThreadFolder({
+                projectId: parent.thread.projectId,
+                folderId: request.folderId,
+                caller: { projectId: parent.thread.projectId, threadId: scope.thread.threadId },
+              }).pipe(Effect.provideService(ServerSettings.ServerSettingsService, serverSettings));
               const initialMessage =
                 request.prompt === undefined
                   ? undefined
@@ -3396,6 +3404,9 @@ const make = Effect.gen(function* () {
                 creationSource: projection.thread.creationSource,
                 providerInstanceId: resolvedModelSelection.instanceId,
                 model: resolvedModelSelection.model,
+                folder: yield* placeNewThread(parent.thread.projectId, threadId, folder).pipe(
+                  Effect.provideService(ServerSettings.ServerSettingsService, serverSettings),
+                ),
               } satisfies OrchestratorMcpCreatedThread;
             }),
           { concurrency: 1 },
@@ -3550,6 +3561,10 @@ const make = Effect.gen(function* () {
         input.afterPosition === undefined &&
           input.beforePosition === undefined &&
           input.itemId === undefined,
+        yield* readThreadFolder(target.thread.projectId, target.thread.id).pipe(
+          Effect.provideService(ServerSettings.ServerSettingsService, serverSettings),
+          Effect.orElseSucceed(() => undefined),
+        ),
       );
       const recentRuns = target.runs
         .toSorted((left, right) => right.ordinal - left.ordinal)

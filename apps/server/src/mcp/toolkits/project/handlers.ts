@@ -40,6 +40,7 @@ import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import * as OrchestrationMcp from "../../OrchestratorMcpService.ts";
 import { newCommandId, readCaller, resolveProjectId, unavailable } from "../../threadAccess.ts";
+import { placeNewThread, resolveNewThreadFolder } from "../../threadFolders.ts";
 import { ProjectToolkit } from "./tools.ts";
 
 const isAboveCeilingError = Schema.is(OrchestratorRuntimeModeAboveCeilingError);
@@ -389,6 +390,11 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
               }).selection
             : null) ??
           undefined;
+        const folder = yield* resolveNewThreadFolder({
+          projectId,
+          folderId: input.folderId,
+          caller: caller && { projectId: caller.projectId, threadId: caller.id },
+        });
         if (modelSelection === undefined)
           return yield* new OrchestratorMcpFailure({
             code: "invalid_request",
@@ -467,6 +473,7 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
           modelSelection: thread.modelSelection,
           runId: run?.id ?? null,
           status: run?.status ?? null,
+          folder: yield* placeNewThread(thread.projectId, thread.id, folder),
         };
       }),
     // The launched thread carries the caller's link, if it has one.
