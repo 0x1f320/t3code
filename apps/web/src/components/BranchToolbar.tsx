@@ -48,6 +48,7 @@ import { BranchToolbarEnvironmentSelector } from "./BranchToolbarEnvironmentSele
 import { openAddProjectToMachine } from "./AddProjectToMachineDialog";
 import { type AddProjectTarget, useAddProjectTargets } from "../hooks/useAddProjectTargets";
 import { BranchToolbarEnvModeSelector } from "./BranchToolbarEnvModeSelector";
+import { BranchToolbarThreadFolderSelector } from "./BranchToolbarThreadFolderSelector";
 import { PreviousWorktreeItemContent } from "./PreviousWorktreeItemContent";
 import { ThreadDetailsControl } from "./chat/ThreadDetailsControl";
 import {
@@ -717,6 +718,14 @@ export const BranchToolbar = memo(function BranchToolbar({
 
   if (!activeProject) return null;
 
+  const folderSelector = isServerThread ? null : (
+    <BranchToolbarThreadFolderSelector
+      environmentId={environmentId}
+      projectId={projectId}
+      threadId={threadId}
+    />
+  );
+
   if (layout === "panel") {
     return (
       <div className="flex w-full flex-col" data-thread-panel-run-context>
@@ -793,6 +802,7 @@ export const BranchToolbar = memo(function BranchToolbar({
             addTargets={addTargets}
             onAddToMachine={onAddToMachine}
           />
+          {folderSelector}
         </div>
       ) : null}
       {showGitControls || showEnvironmentIndicator ? (
@@ -835,8 +845,11 @@ export const BranchToolbar = memo(function BranchToolbar({
               onUsePreviousWorktree={onUsePreviousWorktree}
             />
           ) : null}
+          {folderSelector}
         </div>
-      ) : null}
+      ) : (
+        folderSelector
+      )}
 
       {showGitControls ? (
         <BranchToolbarBranchSelector
