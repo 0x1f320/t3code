@@ -1,6 +1,7 @@
-import type { ProjectThreadFolder, ScopedProjectRef, ThreadId } from "@t3tools/contracts";
+import type { ProjectThreadFolder, ScopedProjectRef } from "@t3tools/contracts";
+import type { ThreadFolderSummary } from "@t3tools/shared/projectThreadFolders";
 
-export type ThreadFolderSummary = Pick<ProjectThreadFolder, "id" | "name">;
+export type { ThreadFolderSummary };
 
 export function threadFolderMemberKey(member: ScopedProjectRef): string {
   return `${member.environmentId}:${member.projectId}`;
@@ -62,26 +63,6 @@ export function splitThreadsIntoFolders<
     else subfolder.threads.push(thread);
   }
   return { subfolders, looseThreads };
-}
-
-/** Takes the threads out of every folder, then adds them to `target`, creating it if missing. */
-export function moveThreadsToFolder(
-  folders: readonly ProjectThreadFolder[],
-  threadIds: readonly ThreadId[],
-  target: ThreadFolderSummary | null,
-): ProjectThreadFolder[] {
-  const moving = new Set<string>(threadIds);
-  const next = folders.map((folder) => ({
-    ...folder,
-    threadIds: folder.threadIds.filter((threadId) => !moving.has(threadId)),
-  }));
-  if (target === null) return next;
-  const existing = next.find((folder) => folder.id === target.id);
-  if (existing === undefined) {
-    return [...next, { id: target.id, name: target.name, threadIds: [...threadIds] }];
-  }
-  existing.threadIds = [...existing.threadIds, ...threadIds];
-  return next;
 }
 
 export function renameThreadFolder(

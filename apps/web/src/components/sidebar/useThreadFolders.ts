@@ -12,6 +12,7 @@ import {
   type ThreadId,
 } from "@t3tools/contracts";
 import { useGT } from "gt-react";
+import { moveThreadsToFolder } from "@t3tools/shared/projectThreadFolders";
 import { create } from "zustand";
 
 import { m } from "../../i18n/messages";
@@ -23,7 +24,6 @@ import { readEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import {
-  moveThreadsToFolder,
   removeThreadFolder,
   renameThreadFolder,
   resolveGroupThreadFolders,
