@@ -1,5 +1,6 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { groupIconFallbacks } from "@t3tools/client-runtime/state/project-grouping";
 import type { ContextMenuSource } from "@t3tools/contracts";
 import { CheckCheckIcon, ChevronDownIcon, SquarePenIcon } from "lucide-react";
 import { msg, T, useGT, useMessages, Var } from "gt-react";
@@ -17,7 +18,7 @@ import {
 import { ProjectFavicon } from "../ProjectFavicon";
 import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { SharedTooltipTrigger } from "../ui/shared-tooltip";
 import { threadFolderDropAttributes } from "./SidebarThreadFolderHeader";
 import type { ProjectFolderDropEdge } from "./useProjectFolderOrder";
 
@@ -44,9 +45,9 @@ export function sidebarFolderRowId(projectKey: string) {
 
 /**
  * A project folder in the boring sidebar. It reads like a shelf header: a trailing
- * count and chevron, with the count and a status dot only while it is closed, so a
- * closed folder still says when a hidden thread needs you. Its Done threads, open or
- * hidden, can be marked read from the header in one go.
+ * count and chevron, with the count only while closed and a status dot whenever hidden
+ * threads need you. Its Done threads, open or hidden, can be marked read from the header
+ * in one go.
  */
 export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHeader(props: {
   group: SidebarProjectSnapshot;
@@ -84,7 +85,8 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
       localLastVisitedAtById[scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))],
     ),
   });
-  const status = collapsed ? resolveSidebarFolderStatus(hiddenThreads.map(withVisit)) : null;
+  const status =
+    hiddenThreads.length > 0 ? resolveSidebarFolderStatus(hiddenThreads.map(withVisit)) : null;
   const doneThreads = props.threads.filter((thread) => isSidebarThreadDone(withVisit(thread)));
   const markDoneReadLabel = gt(
     "Mark {count, plural, one {{count} done thread} other {{count} done threads}} in {project} as read",
@@ -133,7 +135,11 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           props.threadDropTarget && "bg-primary/5 ring-1 ring-inset ring-primary/40",
         )}
       >
-        <ProjectFavicon project={group} className="size-4 shrink-0" />
+        <ProjectFavicon
+          project={group}
+          fallbackProjects={groupIconFallbacks(group.memberProjects, group)}
+          className="size-4 shrink-0"
+        />
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-sidebar-foreground/90">
           {group.displayName}
         </span>
@@ -177,43 +183,41 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
       {/* Sits over the count, which hides on hover or focus, and left of the chevron. */}
       <span className="absolute inset-y-0 right-6 flex items-center opacity-0 focus-within:opacity-100 group-hover/project-folder:opacity-100 pointer-coarse:opacity-100">
         {doneThreads.length > 0 ? (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  data-sidebar-action-for={rowId}
-                  size="icon-xs"
-                  variant="ghost-muted"
-                  aria-label={markDoneReadLabel}
-                  onClick={() => props.onMarkDoneRead(doneThreads)}
-                />
-              }
-            >
-              <CheckCheckIcon aria-hidden />
-            </TooltipTrigger>
-            <TooltipPopup>{markDoneReadLabel}</TooltipPopup>
-          </Tooltip>
-        ) : null}
-        <Tooltip>
-          <TooltipTrigger
+          <SharedTooltipTrigger
             render={
               <Button
                 data-sidebar-action-for={rowId}
                 size="icon-xs"
                 variant="ghost-muted"
-                aria-label={gt("New thread in {project}", { project: group.displayName })}
-                onClick={() => props.onNewThread(group)}
+                aria-label={markDoneReadLabel}
+                onClick={() => props.onMarkDoneRead(doneThreads)}
               />
             }
+            label={markDoneReadLabel}
           >
-            <SquarePenIcon aria-hidden />
-          </TooltipTrigger>
-          <TooltipPopup>
-            <T>
-              New thread in <Var>{group.displayName}</Var>
-            </T>
-          </TooltipPopup>
-        </Tooltip>
+            <CheckCheckIcon aria-hidden />
+          </SharedTooltipTrigger>
+        ) : null}
+        <SharedTooltipTrigger
+          render={
+            <Button
+              data-sidebar-action-for={rowId}
+              size="icon-xs"
+              variant="ghost-muted"
+              aria-label={gt("New thread in {project}", { project: group.displayName })}
+              onClick={() => props.onNewThread(group)}
+            />
+          }
+          label={
+            <>
+              <T>
+                New thread in <Var>{group.displayName}</Var>
+              </T>
+            </>
+          }
+        >
+          <SquarePenIcon aria-hidden />
+        </SharedTooltipTrigger>
       </span>
     </li>
   );
