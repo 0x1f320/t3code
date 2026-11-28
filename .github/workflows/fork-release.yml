@@ -29,7 +29,9 @@ jobs:
   release:
     name: Build and publish macOS arm64
     if: github.repository == '0x1f320/t3code'
-    runs-on: macos-15
+    # GitHub kept disabling this workflow after hosted macOS runs, so it builds on
+    # the maintainer's Mac. Fork PR runs need approval so they never reach it.
+    runs-on: [self-hosted, macOS, ARM64, t3code-release]
     timeout-minutes: 60
     steps:
       - name: Resolve version
@@ -107,6 +109,7 @@ jobs:
             fi
           done
           key_path="$RUNNER_TEMP/AuthKey_${APPLE_API_KEY_ID}.p8"
+          trap 'rm -f "$key_path"' EXIT
           printf '%s' "$APPLE_API_KEY" > "$key_path"
           export APPLE_API_KEY="$key_path"
           vp run dist:desktop:artifact \
@@ -121,12 +124,12 @@ jobs:
           mount="$RUNNER_TEMP/dmg"
           mkdir -p "$mount"
           hdiutil attach -nobrowse -readonly -mountpoint "$mount" release/*.dmg
+          trap 'hdiutil detach -force "$mount" >/dev/null || true' EXIT
           app="$(ls -d "$mount"/*.app | head -n 1)"
           codesign --verify --deep --strict --verbose=2 "$app"
           spctl -a -vv -t exec "$app"
           xcrun stapler validate "$app"
           grep -q "repo: ${GITHUB_REPOSITORY#*/}" "$app/Contents/Resources/app-update.yml"
-          hdiutil detach "$mount"
           test -f release/latest-mac.yml
 
       - name: Publish release
