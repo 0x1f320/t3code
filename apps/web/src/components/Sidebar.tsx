@@ -470,7 +470,7 @@ function useSidebarThreads(input: {
   readonly routeRowThreadKey: string | null;
   // Set in boring mode: the project groups to fold active threads into, in order.
   readonly folderGroups: readonly SidebarProjectSnapshot[] | null;
-  // Keeps folders with no active threads, so a project the user filtered to or pinned can start one.
+  // Keeps folders with no active threads, so every open project can start one.
   readonly keepEmptyFolders: (group: SidebarProjectSnapshot) => boolean;
   readonly resolveThreadFolders: (
     group: SidebarProjectSnapshot,
@@ -1554,8 +1554,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ]
         : folderScopeGroups.filter((project) => scopedProjectGroups.includes(project))
       : null,
-    keepEmptyFolders: (group) =>
-      scopedProjectGroups.length > 0 || (group.pinned && !group.archived),
+    keepEmptyFolders: (group) => !group.archived,
     resolveThreadFolders: threadFolders.resolve,
   });
 
@@ -2205,7 +2204,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         const key = scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
         return { kind: "thread", key, section };
       });
-    // Boring mode keeps a pinned open project or one the user filtered to, so it can start a thread.
+    // Boring mode keeps every open project's folder, so it can start a thread.
     if (
       !hasProjectFolders &&
       pinnedThreads.length +

@@ -1653,7 +1653,7 @@ describe("groupSidebarThreadsByProject", () => {
       { projectKey: "notes", threads: [] },
     ]);
     expect(summarize(() => false)).toEqual([{ projectKey: "t3code", threads: ["a", "b"] }]);
-    // A pinned project keeps its empty folder while other empty projects drop out.
+    // A kept project holds its empty folder while other empty projects drop out.
     expect(summarize((group) => group.projectKey === "fleet")).toEqual([
       { projectKey: "t3code", threads: ["a", "b"] },
       { projectKey: "fleet", threads: [] },
